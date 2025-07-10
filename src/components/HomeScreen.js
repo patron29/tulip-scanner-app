@@ -1,5 +1,5 @@
-import React from 'react';
-import { Camera, Package, Loader, Crown, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Camera, Package, Loader, Crown, AlertCircle, Search } from 'lucide-react';
 import { getProductEmoji } from '../utils/helpers';
 import TulipLogo from './TulipLogo';
 
@@ -14,8 +14,17 @@ const HomeScreen = ({
   setScannedProduct,
   user,
   remainingScans,
-  setShowLogin
+  setShowLogin,
+  compactView = false
 }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Filter saved products based on search query
+  const filteredProducts = savedProducts.filter(product => 
+    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    product.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    product.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-yellow-50 to-green-50 p-4">
       <div className="max-w-md mx-auto">
@@ -161,27 +170,46 @@ const HomeScreen = ({
               </span>
             )}
           </h2>
+          
+          {/* Search Bar */}
+          {savedProducts.length > 3 && (
+            <div className="mb-4">
+              <div className="relative">
+                <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-pink-400"
+                />
+              </div>
+            </div>
+          )}
+          
           {savedProducts.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No scanned products yet</p>
+          ) : filteredProducts.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">No products match your search</p>
           ) : (
             <div className="space-y-3">
-              {savedProducts.map((product, idx) => (
+              {filteredProducts.map((product, idx) => (
                 <div
                   key={idx}
                   onClick={() => {
                     setScannedProduct(product);
                     setCurrentScreen('product-detail');
                   }}
-                  className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                  className={`flex items-center gap-3 ${compactView ? 'p-2' : 'p-3'} bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors`}
                 >
-                  <div className="text-3xl">{getProductEmoji(product.category)}</div>
+                  <div className={compactView ? 'text-2xl' : 'text-3xl'}>{getProductEmoji(product.category)}</div>
                   <div className="flex-1">
-                    <p className="font-medium text-gray-800">{product.name}</p>
-                    <p className="text-sm text-gray-500">{product.brand}</p>
+                    <p className={`font-medium text-gray-800 ${compactView ? 'text-sm' : ''}`}>{product.name}</p>
+                    <p className={`text-gray-500 ${compactView ? 'text-xs' : 'text-sm'}`}>{product.brand}</p>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center gap-1">
-                      <span className="text-sm font-medium">⭐ {product.rating}</span>
+                      <span className={`font-medium ${compactView ? 'text-xs' : 'text-sm'}`}>⭐ {product.rating}</span>
                     </div>
                   </div>
                 </div>

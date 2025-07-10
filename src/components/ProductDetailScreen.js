@@ -1,9 +1,10 @@
 import React from 'react';
-import { X, Star, Shield, Check, AlertCircle, Lock, Crown } from 'lucide-react';
+import { X, Star, Shield, Check, AlertCircle, Lock, Crown, Eye } from 'lucide-react';
 import { getScoreColor, getProductEmoji } from '../utils/helpers';
 import { checkFeatureAccess, TIER_FEATURES } from '../utils/tierConfig';
 import PriceComparison from './PriceComparison';
 import CouponList from './CouponList';
+import PriceHistoryChart from './PriceHistoryChart';
 
 const ProductDetailScreen = ({ 
   scannedProduct, 
@@ -19,7 +20,8 @@ const ProductDetailScreen = ({
   setAppliedCoupon,
   setAvailableCoupons,
   userTier = 'free',
-  setShowUpgrade
+  setShowUpgrade,
+  showPrices = true
 }) => {
   if (!scannedProduct) return null;
   
@@ -127,14 +129,7 @@ const ProductDetailScreen = ({
         
         {/* Price History Chart - Premium Feature */}
         {checkFeatureAccess(userTier, 'hasPriceHistory') ? (
-          <div className="bg-white rounded-2xl shadow-lg p-6 mb-4">
-            <h4 className="font-semibold text-lg mb-3 flex items-center gap-2">
-              📈 Price History
-            </h4>
-            <div className="h-32 bg-gray-100 rounded-lg flex items-center justify-center">
-              <p className="text-gray-500 text-sm">Price trend chart (Premium feature)</p>
-            </div>
-          </div>
+          <PriceHistoryChart productName={scannedProduct.name} />
         ) : (
           <div className="bg-gray-100 rounded-2xl p-6 mb-4 text-center">
             <Lock size={32} className="text-gray-400 mx-auto mb-3" />
@@ -152,7 +147,7 @@ const ProductDetailScreen = ({
         )}
         
         {/* Price Comparison - Limited for Free Users */}
-        {tierLimits.maxRetailers > 0 ? (
+        {showPrices && tierLimits.maxRetailers > 0 ? (
           <>
             {userTier === 'free' && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex items-center gap-2">
@@ -172,7 +167,7 @@ const ProductDetailScreen = ({
               productBrand={scannedProduct.brand}
             />
           </>
-        ) : (
+        ) : showPrices ? (
           <div className="bg-gray-100 rounded-2xl p-6 mb-4 text-center">
             <Lock size={32} className="text-gray-400 mx-auto mb-3" />
             <h3 className="font-semibold text-gray-800 mb-2">Price Comparison Locked</h3>
@@ -185,6 +180,14 @@ const ProductDetailScreen = ({
             >
               Upgrade Now
             </button>
+          </div>
+        ) : (
+          <div className="bg-gray-100 rounded-2xl p-6 mb-4 text-center">
+            <Eye size={32} className="text-gray-400 mx-auto mb-3" />
+            <h3 className="font-semibold text-gray-800 mb-2">Price Display Disabled</h3>
+            <p className="text-sm text-gray-600">
+              Enable "Show Prices" in Settings to view price comparisons
+            </p>
           </div>
         )}
         
@@ -225,7 +228,25 @@ const ProductDetailScreen = ({
         {/* Export Data - Basic & Premium Only */}
         {checkFeatureAccess(userTier, 'hasExportData') && (
           <div className="mt-4 text-center">
-            <button className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+            <button 
+              onClick={() => {
+                const exportData = {
+                  product: scannedProduct,
+                  priceComparison: priceComparison,
+                  exportDate: new Date().toISOString()
+                };
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                
+                const exportFileDefaultName = `${scannedProduct.name.replace(/\s+/g, '_')}_data.json`;
+                
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUri);
+                linkElement.setAttribute('download', exportFileDefaultName);
+                linkElement.click();
+              }}
+              className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+            >
               📥 Export Product Data
             </button>
           </div>

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Loader } from 'lucide-react';
 import TulipLogo from './TulipLogo';
+import TermsOfService from './TermsOfService';
+import PrivacyPolicy from './PrivacyPolicy';
 
 const LoginScreen = ({ onClose }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -277,37 +279,11 @@ const LoginScreen = ({ onClose }) => {
 
       {/* Terms and Privacy Modals */}
       {showTerms && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg p-6 max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Terms of Service</h3>
-            <p className="text-sm text-gray-600">
-              [Terms would be displayed here - import the TermsOfService component]
-            </p>
-            <button
-              onClick={() => setShowTerms(false)}
-              className="mt-4 bg-pink-600 text-white px-4 py-2 rounded-lg"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+        <TermsOfService onClose={() => setShowTerms(false)} />
       )}
 
       {showPrivacy && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg p-6 max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Privacy Policy</h3>
-            <p className="text-sm text-gray-600">
-              [Privacy policy would be displayed here - import the PrivacyPolicy component]
-            </p>
-            <button
-              onClick={() => setShowPrivacy(false)}
-              className="mt-4 bg-pink-600 text-white px-4 py-2 rounded-lg"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+        <PrivacyPolicy onClose={() => setShowPrivacy(false)} />
       )}
     </div>
   );

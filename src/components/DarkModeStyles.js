@@ -235,17 +235,8 @@ function AppContent() {
           .border-gray-200 {
             border-color: #4a4a4a !important;
           }
-          .border-pink-200 {
-            border-color: #831843 !important;
-          }
           .bg-gradient-to-br {
             background: #2a2a2a !important;
-          }
-          .bg-gradient-to-r.from-pink-50.to-purple-50 {
-            background: linear-gradient(to right, #3a1a2a, #2a1a3a) !important;
-          }
-          .bg-white.bg-opacity-60 {
-            background-color: rgba(42, 42, 42, 0.6) !important;
           }
           input {
             background-color: #3a3a3a !important;
@@ -310,10 +301,6 @@ function AppContent() {
           /* Modal overlay */
           .fixed.inset-0.bg-black {
             background-color: rgba(0, 0, 0, 0.8) !important;
-          }
-          /* Gradient text fix for dark mode */
-          .text-transparent.bg-clip-text {
-            -webkit-text-fill-color: transparent !important;
           }
         `}</style>
       )}
