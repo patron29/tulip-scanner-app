@@ -1,102 +1,133 @@
-import React, { useState } from 'react';
-import { Mail, Lock, Loader } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Mail, Lock, Loader, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { ValidationRules } from '../utils/validation';
 import TulipLogo from './TulipLogo';
 import TermsOfService from './TermsOfService';
 import PrivacyPolicy from './PrivacyPolicy';
 
 const LoginScreen = ({ onClose }) => {
+  const { login, register, socialLogin, error: authError, clearError } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [errors, setErrors] = useState({});
 
+  // Clear errors when switching between login/register
+  const handleModeSwitch = useCallback(() => {
+    setIsLogin(!isLogin);
+    setErrors({});
+    clearError();
+    setPassword('');
+    setConfirmPassword('');
+  }, [isLogin, clearError]);
+
+  // Validate form
+  const validateForm = useCallback(() => {
+    const newErrors = {};
+    
+    // Validate email
+    const emailValidation = ValidationRules.validateEmail(email);
+    if (!emailValidation.isValid) {
+      newErrors.email = emailValidation.errors[0];
+    }
+    
+    // Validate password
+    const passwordValidation = ValidationRules.validatePassword(password);
+    if (!passwordValidation.isValid) {
+      newErrors.password = passwordValidation.errors[0];
+    }
+    
+    // Additional validation for registration
+    if (!isLogin) {
+      if (!name.trim()) {
+        newErrors.name = 'Name is required';
+      }
+      
+      if (password !== confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match';
+      }
+      
+      if (!agreedToTerms) {
+        newErrors.terms = 'You must agree to the Terms of Service and Privacy Policy';
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [email, password, confirmPassword, name, isLogin, agreedToTerms]);
+
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!isLogin && !agreedToTerms) {
-      alert('Please agree to the Terms of Service and Privacy Policy to create an account.');
+    if (!validateForm()) {
       return;
     }
     
     setLoading(true);
+    clearError();
     
-    // Mock login - in production, this would call your API
-    setTimeout(() => {
-      const mockUser = {
-        id: '123',
-        email: email,
-        name: email.split('@')[0],
-        tier: 'free',
-        scansRemaining: 5,
-        scansThisMonth: 0,
-        joinDate: new Date().toISOString(),
-        subscriptionExpiry: null
-      };
+    try {
+      let result;
+      if (isLogin) {
+        result = await login(email, password);
+      } else {
+        result = await register(email, password, name);
+      }
       
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      if (result.success) {
+        onClose();
+      } else {
+        setErrors({ submit: result.error });
+      }
+    } catch (err) {
+      setErrors({ submit: 'An unexpected error occurred. Please try again.' });
+    } finally {
       setLoading(false);
-      onClose();
-      window.location.reload();
-    }, 1000);
+    }
   };
 
-  const handleGoogleSignIn = async () => {
+  // Handle social sign in
+  const handleSocialSignIn = async (provider) => {
     setSocialLoading(true);
+    clearError();
     
-    // Mock Google Sign-In
-    // In production, you would use the actual Google Sign-In SDK
-    setTimeout(() => {
-      const mockUser = {
-        id: 'google_123',
-        email: 'user@gmail.com',
-        name: 'Google User',
-        tier: 'free',
-        scansRemaining: 5,
-        scansThisMonth: 0,
-        joinDate: new Date().toISOString(),
-        subscriptionExpiry: null,
-        authProvider: 'google'
-      };
-      
-      localStorage.setItem('user', JSON.stringify(mockUser));
+    try {
+      const result = await socialLogin(provider);
+      if (result.success) {
+        onClose();
+      } else {
+        setErrors({ submit: result.error });
+      }
+    } catch (err) {
+      setErrors({ submit: 'Social login failed. Please try again.' });
+    } finally {
       setSocialLoading(false);
-      onClose();
-      window.location.reload();
-    }, 1500);
+    }
   };
 
-  const handleAppleSignIn = async () => {
-    setSocialLoading(true);
-    
-    // Mock Apple Sign-In
-    // In production, you would use the actual Apple Sign-In SDK
-    setTimeout(() => {
-      const mockUser = {
-        id: 'apple_123',
-        email: 'user@icloud.com',
-        name: 'Apple User',
-        tier: 'free',
-        scansRemaining: 5,
-        scansThisMonth: 0,
-        joinDate: new Date().toISOString(),
-        subscriptionExpiry: null,
-        authProvider: 'apple'
-      };
-      
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      setSocialLoading(false);
-      onClose();
-      window.location.reload();
-    }, 1500);
+  // Password strength indicator
+  const getPasswordStrength = () => {
+    if (!password) return null;
+    const validation = ValidationRules.validatePassword(password);
+    return validation.strength;
   };
+
+  const passwordStrength = getPasswordStrength();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 relative">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 relative max-h-[90vh] overflow-y-auto">
         <div className="text-center mb-6">
           <div className="flex justify-center mb-4">
             <TulipLogo size="large" />
@@ -109,12 +140,21 @@ const LoginScreen = ({ onClose }) => {
           </p>
         </div>
 
+        {/* Error display */}
+        {(errors.submit || authError) && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+            <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-600">{errors.submit || authError}</p>
+          </div>
+        )}
+
         {/* Social Login Buttons */}
         <div className="space-y-3 mb-6">
           <button
-            onClick={handleGoogleSignIn}
-            disabled={socialLoading}
+            onClick={() => handleSocialSignIn('google')}
+            disabled={socialLoading || loading}
             className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 rounded-lg py-3 px-4 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Sign in with Google"
           >
             {socialLoading ? (
               <Loader className="animate-spin" size={20} />
@@ -132,9 +172,10 @@ const LoginScreen = ({ onClose }) => {
           </button>
 
           <button
-            onClick={handleAppleSignIn}
-            disabled={socialLoading}
+            onClick={() => handleSocialSignIn('apple')}
+            disabled={socialLoading || loading}
             className="w-full flex items-center justify-center gap-3 bg-black text-white rounded-lg py-3 px-4 hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Sign in with Apple"
           >
             {socialLoading ? (
               <Loader className="animate-spin" size={20} />
@@ -159,6 +200,26 @@ const LoginScreen = ({ onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-pink-400 ${
+                  errors.name ? 'border-red-300' : 'border-gray-200'
+                }`}
+                placeholder="John Doe"
+                aria-label="Your name"
+                aria-invalid={!!errors.name}
+              />
+              {errors.name && (
+                <p className="mt-1 text-xs text-red-600">{errors.name}</p>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <div className="relative">
@@ -167,11 +228,19 @@ const LoginScreen = ({ onClose }) => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="pl-10 w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-pink-400"
+                className={`pl-10 w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-pink-400 ${
+                  errors.email ? 'border-red-300' : 'border-gray-200'
+                }`}
                 placeholder="you@example.com"
                 required
+                aria-label="Email address"
+                aria-invalid={!!errors.email}
+                autoComplete="email"
               />
             </div>
+            {errors.email && (
+              <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+            )}
           </div>
 
           <div>
@@ -179,15 +248,88 @@ const LoginScreen = ({ onClose }) => {
             <div className="relative">
               <Lock size={20} className="absolute left-3 top-3 text-gray-400" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pl-10 w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-pink-400"
+                className={`pl-10 pr-10 w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-pink-400 ${
+                  errors.password ? 'border-red-300' : 'border-gray-200'
+                }`}
                 placeholder="••••••••"
                 required
+                aria-label="Password"
+                aria-invalid={!!errors.password}
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
             </div>
+            {errors.password && (
+              <p className="mt-1 text-xs text-red-600">{errors.password}</p>
+            )}
+            
+            {!isLogin && password && (
+              <div className="mt-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600">Password strength:</span>
+                  <span className={`text-xs font-medium ${
+                    passwordStrength === 'strong' ? 'text-green-600' :
+                    passwordStrength === 'medium' ? 'text-yellow-600' :
+                    'text-red-600'
+                  }`}>
+                    {passwordStrength}
+                  </span>
+                </div>
+                <div className="mt-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full transition-all ${
+                      passwordStrength === 'strong' ? 'bg-green-500 w-full' :
+                      passwordStrength === 'medium' ? 'bg-yellow-500 w-2/3' :
+                      'bg-red-500 w-1/3'
+                    }`}
+                  />
+                </div>
+              </div>
+            )}
           </div>
+
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+              <div className="relative">
+                <Lock size={20} className="absolute left-3 top-3 text-gray-400" />
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`pl-10 pr-10 w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-pink-400 ${
+                    errors.confirmPassword ? 'border-red-300' : 'border-gray-200'
+                  }`}
+                  placeholder="••••••••"
+                  required
+                  aria-label="Confirm password"
+                  aria-invalid={!!errors.confirmPassword}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              {errors.confirmPassword && (
+                <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>
+              )}
+            </div>
+          )}
 
           {!isLogin && (
             <div className="mt-4">
@@ -197,6 +339,7 @@ const LoginScreen = ({ onClose }) => {
                   checked={agreedToTerms}
                   onChange={(e) => setAgreedToTerms(e.target.checked)}
                   className="mt-0.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+                  aria-label="Agree to terms"
                 />
                 <span className="text-sm text-gray-600">
                   I agree to the{' '}
@@ -217,12 +360,27 @@ const LoginScreen = ({ onClose }) => {
                   </button>
                 </span>
               </label>
+              {errors.terms && (
+                <p className="mt-1 text-xs text-red-600">{errors.terms}</p>
+              )}
+            </div>
+          )}
+
+          {isLogin && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => alert('Password reset functionality would be implemented here')}
+                className="text-sm text-pink-600 hover:text-pink-700"
+              >
+                Forgot password?
+              </button>
             </div>
           )}
 
           <button
             type="submit"
-            disabled={loading || (!isLogin && !agreedToTerms)}
+            disabled={loading || socialLoading}
             className="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
@@ -240,7 +398,7 @@ const LoginScreen = ({ onClose }) => {
           <p className="text-gray-600">
             {isLogin ? "Don't have an account? " : "Already have an account? "}
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={handleModeSwitch}
               className="text-pink-600 font-semibold hover:text-pink-700"
             >
               {isLogin ? 'Sign Up' : 'Sign In'}
@@ -272,6 +430,7 @@ const LoginScreen = ({ onClose }) => {
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl"
+          aria-label="Close dialog"
         >
           ✕
         </button>

@@ -1,6 +1,7 @@
 import React from 'react';
-import { X, Star, Shield, Check, AlertCircle, Lock, Crown, Eye } from 'lucide-react';
+import { ArrowLeft, Star, Shield, Check, AlertCircle, Lock, Crown, Eye } from 'lucide-react';
 import { getScoreColor, getProductEmoji } from '../utils/helpers';
+import { formatProductName, truncateText, smartTruncate } from '../utils/textUtils';
 import { checkFeatureAccess, TIER_FEATURES } from '../utils/tierConfig';
 import PriceComparison from './PriceComparison';
 import CouponList from './CouponList';
@@ -21,27 +22,39 @@ const ProductDetailScreen = ({
   setAvailableCoupons,
   userTier = 'free',
   setShowUpgrade,
-  showPrices = true
+  showPrices = true,
+  onBack // New prop for back navigation
 }) => {
   if (!scannedProduct) return null;
   
   const isSaved = savedProducts.find(p => p.barcode === scannedProduct.barcode);
   const tierLimits = TIER_FEATURES[userTier].limitations;
   
+  // Handle back navigation
+  const handleBack = () => {
+    if (onBack) {
+      onBack(); // Use router's goBack
+    } else {
+      setCurrentScreen('home'); // Fallback
+    }
+  };
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-      <div className="bg-white shadow-lg">
+      <div className="bg-white shadow-lg sticky top-0 z-30">
         <div className="max-w-md mx-auto p-4 flex items-center justify-between">
           <button
-            onClick={() => setCurrentScreen('home')}
-            className="text-purple-600"
+            onClick={handleBack}
+            className="text-purple-600 hover:text-purple-700 transition-colors p-2 -m-2 rounded-lg hover:bg-purple-50"
+            aria-label="Go back"
           >
-            <X size={24} />
+            <ArrowLeft size={24} />
           </button>
-          <h2 className="text-lg font-semibold">Product Analysis</h2>
+          <h2 className="text-lg font-semibold truncate px-2">Product Analysis</h2>
           <button
             onClick={() => saveProduct(scannedProduct)}
-            className={`${isSaved ? 'text-purple-600' : 'text-gray-400'}`}
+            className={`${isSaved ? 'text-purple-600' : 'text-gray-400'} hover:scale-110 transition-all p-2 -m-2`}
+            aria-label={isSaved ? 'Remove from saved' : 'Save product'}
           >
             <Star size={24} className={isSaved ? 'fill-current' : ''} />
           </button>
@@ -51,12 +64,14 @@ const ProductDetailScreen = ({
       <div className="max-w-md mx-auto p-4">
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-4">
           <div className="flex items-start gap-4">
-            <div className="text-5xl">{getProductEmoji(scannedProduct.category)}</div>
-            <div className="flex-1">
-              <h3 className="text-xl font-bold text-gray-800">{scannedProduct.name}</h3>
-              <p className="text-gray-600">{scannedProduct.brand}</p>
-              <p className="text-sm text-gray-500 mt-1">{scannedProduct.category}</p>
-              <p className="text-xs text-gray-400 mt-2">Barcode: {scannedProduct.barcode}</p>
+            <div className="text-5xl flex-shrink-0">{getProductEmoji(scannedProduct.category)}</div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xl font-bold text-gray-800 mb-1">
+                {formatProductName(scannedProduct.name, scannedProduct.brand, 50)}
+              </h3>
+              <p className="text-gray-600 truncate">{truncateText(scannedProduct.brand, 30)}</p>
+              <p className="text-sm text-gray-500 mt-1 truncate">{scannedProduct.category}</p>
+              <p className="text-xs text-gray-400 mt-2 font-mono">Barcode: {scannedProduct.barcode}</p>
             </div>
           </div>
           
@@ -89,7 +104,7 @@ const ProductDetailScreen = ({
             <div className="flex flex-wrap gap-2">
               {scannedProduct.certifications.map((cert, idx) => (
                 <span key={idx} className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
-                  {cert}
+                  {truncateText(cert, 20)}
                 </span>
               ))}
             </div>
@@ -98,7 +113,14 @@ const ProductDetailScreen = ({
         
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-4">
           <h4 className="font-semibold text-lg mb-3">Product Details</h4>
-          <p className="text-sm text-gray-600 mb-4 italic">{scannedProduct.ingredients_text}</p>
+          <p className="text-sm text-gray-600 italic">
+            {smartTruncate(scannedProduct.ingredients_text, 200)}
+          </p>
+          {scannedProduct.ingredients_text.length > 200 && (
+            <button className="text-purple-600 text-sm mt-2 hover:text-purple-700">
+              Show more...
+            </button>
+          )}
         </div>
         
         <div className="grid grid-cols-2 gap-4 mb-4">
@@ -109,7 +131,7 @@ const ProductDetailScreen = ({
             </h5>
             <ul className="text-sm text-green-700 space-y-1">
               {scannedProduct.pros.map((pro, idx) => (
-                <li key={idx}>• {pro}</li>
+                <li key={idx} className="truncate" title={pro}>• {truncateText(pro, 25)}</li>
               ))}
             </ul>
           </div>
@@ -121,7 +143,7 @@ const ProductDetailScreen = ({
             </h5>
             <ul className="text-sm text-orange-700 space-y-1">
               {scannedProduct.cons.map((con, idx) => (
-                <li key={idx}>• {con}</li>
+                <li key={idx} className="truncate" title={con}>• {truncateText(con, 25)}</li>
               ))}
             </ul>
           </div>
@@ -139,7 +161,7 @@ const ProductDetailScreen = ({
             </p>
             <button 
               onClick={() => setShowUpgrade && setShowUpgrade(true)}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-indigo-700"
+              className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-6 py-2 rounded-full text-sm font-semibold hover:shadow-lg transition-all"
             >
               Upgrade to View
             </button>
@@ -151,7 +173,7 @@ const ProductDetailScreen = ({
           <>
             {userTier === 'free' && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex items-center gap-2">
-                <AlertCircle size={16} className="text-yellow-600" />
+                <AlertCircle size={16} className="text-yellow-600 flex-shrink-0" />
                 <p className="text-sm text-yellow-800">
                   Free users see only {tierLimits.maxRetailers} retailers. Upgrade for full comparison!
                 </p>
@@ -176,7 +198,7 @@ const ProductDetailScreen = ({
             </p>
             <button 
               onClick={() => setShowUpgrade && setShowUpgrade(true)}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-indigo-700"
+              className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-6 py-2 rounded-full text-sm font-semibold hover:shadow-lg transition-all"
             >
               Upgrade Now
             </button>
@@ -218,7 +240,7 @@ const ProductDetailScreen = ({
             </div>
             <button 
               onClick={() => setShowUpgrade && setShowUpgrade(true)}
-              className="mt-4 bg-purple-600 text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-purple-700 transition-colors"
+              className="mt-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white px-6 py-2 rounded-full text-sm font-semibold hover:shadow-lg transition-all"
             >
               View All Plans
             </button>
@@ -245,7 +267,7 @@ const ProductDetailScreen = ({
                 linkElement.setAttribute('download', exportFileDefaultName);
                 linkElement.click();
               }}
-              className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
             >
               📥 Export Product Data
             </button>
@@ -266,6 +288,17 @@ const ProductDetailScreen = ({
             </p>
           </div>
         )}
+        
+        {/* Back to Home Button */}
+        <div className="mt-8 mb-4">
+          <button
+            onClick={handleBack}
+            className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+          >
+            <ArrowLeft size={20} />
+            Back to Products
+          </button>
+        </div>
       </div>
     </div>
   );

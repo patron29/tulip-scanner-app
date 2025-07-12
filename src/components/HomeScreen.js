@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Camera, Package, Loader, Crown, AlertCircle, Search } from 'lucide-react';
 import { getProductEmoji } from '../utils/helpers';
+import { formatProductName, truncateText } from '../utils/textUtils';
 import TulipLogo from './TulipLogo';
 
 const HomeScreen = ({ 
@@ -25,6 +26,7 @@ const HomeScreen = ({
     product.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
     product.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-yellow-50 to-green-50 p-4">
       <div className="max-w-md mx-auto">
@@ -159,7 +161,7 @@ const HomeScreen = ({
           </div>
         </div>
 
-        {/* Recently Scanned - Already Well Aligned */}
+        {/* Recently Scanned - With Text Truncation */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center justify-center gap-2">
             <Package size={20} className="text-pink-600" />
@@ -198,16 +200,19 @@ const HomeScreen = ({
                   key={idx}
                   onClick={() => {
                     setScannedProduct(product);
-                    setCurrentScreen('product-detail');
                   }}
                   className={`flex items-center gap-3 ${compactView ? 'p-2' : 'p-3'} bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors`}
                 >
                   <div className={compactView ? 'text-2xl' : 'text-3xl'}>{getProductEmoji(product.category)}</div>
-                  <div className="flex-1">
-                    <p className={`font-medium text-gray-800 ${compactView ? 'text-sm' : ''}`}>{product.name}</p>
-                    <p className={`text-gray-500 ${compactView ? 'text-xs' : 'text-sm'}`}>{product.brand}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-medium text-gray-800 ${compactView ? 'text-sm' : ''} truncate`}>
+                      {formatProductName(product.name, product.brand, compactView ? 30 : 40)}
+                    </p>
+                    <p className={`text-gray-500 ${compactView ? 'text-xs' : 'text-sm'} truncate`}>
+                      {truncateText(product.brand, compactView ? 20 : 30)}
+                    </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     <div className="flex items-center gap-1">
                       <span className={`font-medium ${compactView ? 'text-xs' : 'text-sm'}`}>⭐ {product.rating}</span>
                     </div>
@@ -236,7 +241,7 @@ const HomeScreen = ({
             </p>
             <div className="flex justify-center">
               <button
-                onClick={() => setCurrentScreen('upgrade')}
+                onClick={() => setCurrentScreen('subscription')}
                 className="bg-white text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-600 px-4 py-2 rounded-full text-sm font-semibold bg-white hover:bg-gray-100 transition-colors"
               >
                 View Plans
