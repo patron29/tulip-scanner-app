@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useEffect, lazy, Suspense, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, lazy, Suspense, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useRouter } from '../contexts/RouterContext';
 import { fetchProductFromAPI } from '../services/productService';
 import { fetchPriceComparison, fetchCoupons } from '../services/priceService';
 import { REAL_BARCODES } from '../utils/constants';
@@ -96,17 +95,6 @@ const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade,
     }
   }, [savedProducts]);
 
-  // Handle navigation from route params
-  useEffect(() => {
-    if (routeParams.productId && currentRoute === 'product-detail') {
-      // Load product from saved products
-      const product = savedProducts.find(p => p.barcode === routeParams.productId);
-      if (product) {
-        setScannedProduct(product);
-      }
-    }
-  }, [routeParams, currentRoute, savedProducts]);
-
   // Create a global navigation function that can be called from anywhere
   useEffect(() => {
     // Make navigation functions globally available
@@ -123,7 +111,7 @@ const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade,
       delete window.tulipNavigate;
       delete window.tulipShowUpgrade;
     };
-  }, []);
+  }, [setCurrentScreen, setShowUpgrade]);
 
   // Apply dark mode with proper cleanup
   useEffect(() => {
@@ -191,7 +179,7 @@ const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade,
     }
     
     return true;
-  }, [user, onShowLogin]);
+  }, [user, onShowLogin, setShowUpgrade]);
 
   // Save product with limit checking
   const saveProduct = useCallback((product) => {
@@ -207,7 +195,7 @@ const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade,
       }
       return prev;
     });
-  }, [user, savedProducts.length]);
+  }, [user, savedProducts.length, setShowUpgrade]);
 
   // Fetch price comparison
   const handleFetchPriceComparison = useCallback(async (productName, brand) => {
@@ -271,7 +259,7 @@ const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade,
         }
       }
     }, 2000);
-  }, [canScan, user, decrementScans, handleFetchPriceComparison, navigate]);
+  }, [canScan, user, decrementScans, handleFetchPriceComparison, setCurrentScreen]);
 
   // Manual barcode search with validation
   const searchByBarcode = useCallback(async () => {
@@ -313,7 +301,7 @@ const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade,
         setIsLoading(false);
       }
     }
-  }, [canScan, manualBarcode, user, decrementScans, handleFetchPriceComparison, navigate]);
+  }, [canScan, manualBarcode, user, decrementScans, handleFetchPriceComparison, setCurrentScreen]);
 
   // Fetch coupons
   const handleFetchCoupons = useCallback(async (productName, brand, retailer = null) => {
@@ -331,7 +319,7 @@ const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade,
     } catch (err) {
       console.error('Failed to fetch coupons:', err);
     }
-  }, [user]);
+  }, [user, setShowUpgrade]);
 
   // Handle upgrade
   const handleUpgrade = useCallback(async (tier) => {
@@ -342,7 +330,7 @@ const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade,
     } else {
       alert(`Failed to upgrade: ${result.error}`);
     }
-  }, [upgradeTier]);
+  }, [upgradeTier, setShowUpgrade]);
 
   // Update app settings
   const updateAppSettings = useCallback((newSettings) => {
@@ -355,7 +343,7 @@ const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade,
     setShowUpgrade(false);
     setShowTerms(false);
     setShowPrivacy(false);
-  }, []);
+  }, [setShowUpgrade]);
 
   // Render content based on current route
   const renderContent = () => {
@@ -369,6 +357,13 @@ const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade,
             setCurrentScreen={setCurrentScreen}
             isScanning={isScanning}
             simulateScan={simulateScan}
+            onBarcodeDetected={async (barcode) => {
+              // Handle real barcode detection
+              if (barcode) {
+                setManualBarcode(barcode);
+                await searchByBarcode();
+              }
+            }}
           />
         );
         

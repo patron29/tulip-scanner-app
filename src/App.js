@@ -1,7 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import './App.css';
 import { AuthProvider } from './contexts/AuthContext';
-import { RouterProvider } from './contexts/RouterContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import TulipLogo from './components/TulipLogo';
 import { Loader } from 'lucide-react';
@@ -108,9 +107,7 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <RouterProvider>
-          <MainApp />
-        </RouterProvider>
+        <MainApp />
       </AuthProvider>
     </ErrorBoundary>
   );
