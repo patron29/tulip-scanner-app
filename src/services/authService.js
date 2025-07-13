@@ -1,15 +1,88 @@
-// Authentication Service with security improvements
+// Authentication Service with improved security
 import { TIER_FEATURES } from '../utils/tierConfig';
 
-// Simulated secure token generation
-const generateToken = () => {
-  return 'mock_' + Math.random().toString(36).substr(2) + Date.now().toString(36);
+// Generate UUID (with fallback for older browsers)
+const generateUUID = () => {
+  // Check if crypto.randomUUID is available
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  
+  // Fallback for older browsers
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : ((r & 0x3) | 0x8);
+    return v.toString(16);
+  });
 };
 
-// Hash password (in production, this would be done server-side)
-const hashPassword = (password) => {
-  // This is a mock - in production, use bcrypt or similar on the server
-  return btoa(password);
+// Generate cryptographically secure token (with fallback)
+const generateSecureToken = () => {
+  try {
+    const array = new Uint8Array(32);
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      crypto.getRandomValues(array);
+      return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (e) {
+    // Fallback for older browsers
+  }
+  
+  // Fallback: less secure but works everywhere
+  let token = '';
+  for (let i = 0; i < 64; i++) {
+    token += Math.floor(Math.random() * 16).toString(16);
+  }
+  return token;
+};
+
+// Generate CSRF token (with fallback)
+const generateCSRFToken = () => {
+  try {
+    const array = new Uint8Array(16);
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      crypto.getRandomValues(array);
+      return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (e) {
+    // Fallback for older browsers
+  }
+  
+  // Fallback: less secure but works everywhere
+  let token = '';
+  for (let i = 0; i < 32; i++) {
+    token += Math.floor(Math.random() * 16).toString(16);
+  }
+  return token;
+};
+
+// Hash password (with fallback for older browsers)
+const hashPassword = async (password) => {
+  // Try to use crypto.subtle if available
+  if (typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest) {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(password + 'tulip_salt_2024');
+      const hash = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hash))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    } catch (e) {
+      // Fall through to fallback
+    }
+  }
+  
+  // Fallback: Simple hash function (less secure but works everywhere)
+  let hash = 0;
+  const str = password + 'tulip_salt_2024';
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // Convert to hex string
+  return Math.abs(hash).toString(16).padStart(16, '0');
 };
 
 // Validate email format
@@ -20,16 +93,50 @@ const validateEmail = (email) => {
 
 // Validate password strength
 const validatePassword = (password) => {
+  const errors = [];
+  
+  if (password.length < 8) {
+    errors.push('Password must be at least 8 characters');
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Password must contain an uppercase letter');
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('Password must contain a lowercase letter');
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push('Password must contain a number');
+  }
+  
   return {
-    isValid: password.length >= 8,
-    errors: password.length < 8 ? ['Password must be at least 8 characters'] : []
+    isValid: errors.length === 0,
+    errors
   };
 };
 
-// Mock user database
+// Session storage (in production, use secure HTTP-only cookies)
+const sessionStorage = new Map();
+
+// Mock user database (in production, this would be a real database)
 const mockUsers = new Map();
 
 export const authService = {
+  // Initialize CSRF token
+  getCSRFToken: () => {
+    let token = sessionStorage.get('csrf_token');
+    if (!token) {
+      token = generateCSRFToken();
+      sessionStorage.set('csrf_token', token);
+    }
+    return token;
+  },
+
+  // Validate CSRF token
+  validateCSRFToken: (token) => {
+    const storedToken = sessionStorage.get('csrf_token');
+    return storedToken && storedToken === token;
+  },
+
   // Register new user
   register: async (email, password, name) => {
     if (!validateEmail(email)) {
@@ -45,11 +152,12 @@ export const authService = {
       throw new Error('Email already registered');
     }
 
-    const hashedPassword = hashPassword(password);
-    const token = generateToken();
+    const hashedPassword = await hashPassword(password);
+    const token = generateSecureToken();
+    const sessionId = generateSecureToken();
     
     const newUser = {
-      id: Date.now().toString(),
+      id: generateUUID(),
       email,
       name: name || email.split('@')[0],
       tier: 'free',
@@ -58,14 +166,26 @@ export const authService = {
       joinDate: new Date().toISOString(),
       subscriptionExpiry: null,
       lastResetDate: new Date().toISOString(),
-      token
+      sessionId
     };
 
-    mockUsers.set(email, { ...newUser, password: hashedPassword });
+    // Store user with hashed password
+    mockUsers.set(email, { 
+      ...newUser, 
+      password: hashedPassword,
+      sessions: [sessionId]
+    });
     
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = newUser;
-    return userWithoutPassword;
+    // Store session
+    sessionStorage.set(sessionId, {
+      userId: newUser.id,
+      token,
+      createdAt: Date.now(),
+      lastActivity: Date.now()
+    });
+    
+    // Return user without sensitive data
+    return { ...newUser, token };
   },
 
   // Login user
@@ -75,13 +195,23 @@ export const authService = {
     }
 
     const user = mockUsers.get(email);
-    if (!user || user.password !== hashPassword(password)) {
+    if (!user || user.password !== await hashPassword(password)) {
       throw new Error('Invalid email or password');
     }
 
-    // Generate new token on login
-    const token = generateToken();
-    user.token = token;
+    // Generate new session
+    const token = generateSecureToken();
+    const sessionId = generateSecureToken();
+    
+    // Update user sessions
+    user.sessions = user.sessions || [];
+    user.sessions.push(sessionId);
+    
+    // Limit to 5 concurrent sessions
+    if (user.sessions.length > 5) {
+      const oldSessionId = user.sessions.shift();
+      sessionStorage.delete(oldSessionId);
+    }
 
     // Check if month has passed and reset scans
     const lastReset = new Date(user.lastResetDate);
@@ -92,23 +222,55 @@ export const authService = {
       user.lastResetDate = now.toISOString();
     }
 
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    // Store session
+    sessionStorage.set(sessionId, {
+      userId: user.id,
+      token,
+      createdAt: Date.now(),
+      lastActivity: Date.now()
+    });
+
+    // Return user without sensitive data
+    const { password: _, sessions: __, ...userWithoutSensitive } = user;
+    return { ...userWithoutSensitive, token, sessionId };
   },
 
   // Validate token
   validateToken: (token) => {
-    if (!token || !token.startsWith('mock_')) {
-      return false;
+    if (!token) return false;
+    
+    // Check all sessions for this token
+    for (const [sessionId, session] of sessionStorage.entries()) {
+      if (session.token === token) {
+        // Check if session is expired (24 hours)
+        const age = Date.now() - session.createdAt;
+        if (age > 24 * 60 * 60 * 1000) {
+          sessionStorage.delete(sessionId);
+          return false;
+        }
+        
+        // Update last activity
+        session.lastActivity = Date.now();
+        return true;
+      }
     }
-    // In production, validate against server
-    return true;
+    
+    return false;
   },
 
   // Logout
-  logout: () => {
-    // In production, invalidate token on server
+  logout: (sessionId) => {
+    if (sessionId) {
+      sessionStorage.delete(sessionId);
+      
+      // Remove session from user's sessions list
+      for (const [, user] of mockUsers.entries()) {
+        if (user.sessions && user.sessions.includes(sessionId)) {
+          user.sessions = user.sessions.filter(id => id !== sessionId);
+          break;
+        }
+      }
+    }
     return true;
   },
 
@@ -135,8 +297,8 @@ export const authService = {
       ? null 
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { password: _, ...userWithoutPassword } = userFound;
-    return userWithoutPassword;
+    const { password: _, sessions: __, ...userWithoutSensitive } = userFound;
+    return userWithoutSensitive;
   },
 
   // Reset password
@@ -152,7 +314,11 @@ export const authService = {
     }
 
     // In production, send email with reset token
-    console.log('Password reset requested for:', email);
+    const resetToken = generateSecureToken();
+    user.resetToken = resetToken;
+    user.resetTokenExpiry = Date.now() + 60 * 60 * 1000; // 1 hour
+    
+    // In production, this would be sent via email
     return { message: 'If the email exists, a reset link has been sent' };
   },
 
@@ -163,8 +329,9 @@ export const authService = {
 
     if (!user) {
       // Create new user from social login
+      const sessionId = generateSecureToken();
       const newUser = {
-        id: Date.now().toString(),
+        id: generateUUID(),
         email,
         name: profileData.name || email.split('@')[0],
         tier: 'free',
@@ -174,20 +341,29 @@ export const authService = {
         subscriptionExpiry: null,
         lastResetDate: new Date().toISOString(),
         authProvider: provider,
-        token: generateToken()
+        sessions: [sessionId]
       };
 
       mockUsers.set(email, newUser);
-      return newUser;
+      user = newUser;
     }
 
-    // Login existing user
-    const token = generateToken();
-    user.token = token;
-    user.authProvider = provider;
+    // Create session
+    const token = generateSecureToken();
+    const sessionId = generateSecureToken();
+    
+    user.sessions = user.sessions || [];
+    user.sessions.push(sessionId);
+    
+    sessionStorage.set(sessionId, {
+      userId: user.id,
+      token,
+      createdAt: Date.now(),
+      lastActivity: Date.now()
+    });
 
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    const { password: _, sessions: __, ...userWithoutSensitive } = user;
+    return { ...userWithoutSensitive, token, sessionId };
   }
 };
 

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import navigationService from '../services/navigationService';
 
 // Simple routing context for navigation with history support
 const RouterContext = createContext();
@@ -42,6 +43,11 @@ export const RouterProvider = ({ children }) => {
       window.history.back();
     }
   }, [routeHistory]);
+
+  // Initialize navigation service
+  useEffect(() => {
+    navigationService.setNavigationFunctions(navigate, goBack);
+  }, [navigate, goBack]);
 
   // Replace current route without adding to history
   const replace = useCallback((route, params = {}) => {

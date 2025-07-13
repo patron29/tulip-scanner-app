@@ -6,6 +6,8 @@
   "author": "Tulip Team",
   "license": "MIT",
   "dependencies": {
+    "@capacitor/cli": "^7.4.2",
+    "@capacitor/core": "^7.4.2",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
@@ -35,7 +37,15 @@
     ],
     "rules": {
       "no-unused-vars": "warn",
-      "no-console": ["warn", { "allow": ["warn", "error"] }],
+      "no-console": [
+        "warn",
+        {
+          "allow": [
+            "warn",
+            "error"
+          ]
+        }
+      ],
       "react-hooks/exhaustive-deps": "warn"
     }
   },
@@ -52,8 +62,8 @@
     ]
   },
   "devDependencies": {
-    "source-map-explorer": "^2.5.3",
-    "gh-pages": "^6.1.1"
+    "gh-pages": "^6.1.1",
+    "source-map-explorer": "^2.5.3"
   },
   "jest": {
     "coveragePathIgnorePatterns": [

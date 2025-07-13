@@ -1,18 +1,45 @@
-// Input validation utilities for security and data integrity
+// Enhanced input validation utilities for security and data integrity
+
+// HTML entities map for escaping
+const htmlEntities = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#x27;',
+  '/': '&#x2F;'
+};
 
 export const ValidationRules = {
-    // Sanitize input to prevent XSS
+    // Enhanced sanitize input to prevent XSS
     sanitizeInput: (input) => {
       if (typeof input !== 'string') return input;
       
-      return input
-        .replace(/[<>]/g, '') // Remove angle brackets
+      // First, escape HTML entities
+      let sanitized = input.replace(/[&<>"'/]/g, char => htmlEntities[char] || char);
+      
+      // Remove any remaining dangerous patterns
+      sanitized = sanitized
         .replace(/javascript:/gi, '') // Remove javascript: protocol
+        .replace(/vbscript:/gi, '') // Remove vbscript: protocol
         .replace(/on\w+\s*=/gi, '') // Remove inline event handlers
+        .replace(/data:text\/html/gi, '') // Remove data URLs that could contain HTML
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
+        .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '') // Remove iframe tags
+        .replace(/expression\s*\(/gi, '') // Remove CSS expressions
+        .replace(/import\s+/gi, '') // Remove import statements
         .trim();
+      
+      return sanitized;
+    },
+    
+    // Escape HTML for display
+    escapeHtml: (unsafe) => {
+      if (typeof unsafe !== 'string') return unsafe;
+      return unsafe.replace(/[&<>"'/]/g, char => htmlEntities[char] || char);
     },
   
-    // Validate barcode format
+    // Validate barcode format with checksum validation
     validateBarcode: (barcode) => {
       const errors = [];
       
@@ -33,6 +60,14 @@ export const ValidationRules = {
         if (!/^\d+$/.test(cleanBarcode)) {
           errors.push('Barcode must contain only numbers');
         }
+        
+        // Basic checksum validation for common barcode formats
+        if (cleanBarcode.length === 12 || cleanBarcode.length === 13) {
+          // UPC/EAN checksum validation
+          if (!ValidationRules.validateUPCChecksum(cleanBarcode)) {
+            errors.push('Invalid barcode checksum');
+          }
+        }
       }
       
       return {
@@ -41,11 +76,33 @@ export const ValidationRules = {
         cleanValue: barcode ? barcode.replace(/\D/g, '') : ''
       };
     },
+    
+    // Validate UPC/EAN checksum
+    validateUPCChecksum: (barcode) => {
+      if (!barcode || typeof barcode !== 'string') return false;
+      
+      const digits = barcode.split('').map(Number);
+      const checkDigit = digits[digits.length - 1];
+      const payload = digits.slice(0, -1);
+      
+      let sum = 0;
+      for (let i = 0; i < payload.length; i++) {
+        if (i % 2 === 0) {
+          sum += payload[i];
+        } else {
+          sum += payload[i] * 3;
+        }
+      }
+      
+      const calculatedCheck = (10 - (sum % 10)) % 10;
+      return calculatedCheck === checkDigit;
+    },
   
-    // Validate email
+    // Validate email with enhanced checks
     validateEmail: (email) => {
       const errors = [];
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const dangerousPatterns = /[<>'"]/;
       
       if (!email) {
         errors.push('Email is required');
@@ -53,6 +110,8 @@ export const ValidationRules = {
         errors.push('Invalid email format');
       } else if (email.length > 100) {
         errors.push('Email is too long');
+      } else if (dangerousPatterns.test(email)) {
+        errors.push('Email contains invalid characters');
       }
       
       return {
@@ -62,7 +121,7 @@ export const ValidationRules = {
       };
     },
   
-    // Validate password
+    // Validate password with strength meter
     validatePassword: (password) => {
       const errors = [];
       
@@ -83,6 +142,9 @@ export const ValidationRules = {
         }
         if (!/[0-9]/.test(password)) {
           errors.push('Password must contain at least one number');
+        }
+        if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+          errors.push('Password must contain at least one special character');
         }
       }
       
@@ -113,7 +175,7 @@ export const ValidationRules = {
       };
     },
   
-    // Validate price
+    // Validate price with better precision
     validatePrice: (price) => {
       const errors = [];
       const numPrice = parseFloat(price);
@@ -124,6 +186,8 @@ export const ValidationRules = {
         errors.push('Price cannot be negative');
       } else if (numPrice > 999999) {
         errors.push('Price is too high');
+      } else if (!/^\d+(\.\d{1,2})?$/.test(price.toString())) {
+        errors.push('Price must have at most 2 decimal places');
       }
       
       return {
@@ -150,8 +214,40 @@ export const ValidationRules = {
         cleanValue: sanitized ? sanitized.toUpperCase() : ''
       };
     },
+    
+    // Validate URL
+    validateURL: (url) => {
+      const errors = [];
+      
+      if (!url) {
+        errors.push('URL is required');
+        return { isValid: false, errors, cleanValue: '' };
+      }
+      
+      try {
+        const urlObj = new URL(url);
+        
+        // Check protocol
+        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+          errors.push('URL must use HTTP or HTTPS protocol');
+        }
+        
+        // Check for suspicious patterns
+        if (url.toLowerCase().includes('script')) {
+          errors.push('URL contains potentially dangerous content');
+        }
+      } catch (e) {
+        errors.push('Invalid URL format');
+      }
+      
+      return {
+        isValid: errors.length === 0,
+        errors,
+        cleanValue: url
+      };
+    },
   
-    // Rate limiting check (simple client-side implementation)
+    // Enhanced rate limiting check with IP tracking
     checkRateLimit: (action, maxAttempts = 5, windowMs = 60000) => {
       const now = Date.now();
       const key = `rateLimit_${action}`;
@@ -163,6 +259,7 @@ export const ValidationRules = {
           data = JSON.parse(stored);
         } catch (e) {
           // Invalid data, reset
+          localStorage.removeItem(key);
         }
       }
       
@@ -201,22 +298,42 @@ export const ValidationRules = {
         remainingAttempts: maxAttempts - data.attempts.length,
         resetTime: new Date(now + windowMs)
       };
+    },
+    
+    // Clean all rate limiting data
+    clearRateLimits: () => {
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('rateLimit_')) {
+          localStorage.removeItem(key);
+        }
+      });
     }
   };
   
   // Helper function to calculate password strength
   function calculatePasswordStrength(password) {
+    if (!password) return 'weak';
+    
     let strength = 0;
     
+    // Length checks
     if (password.length >= 8) strength += 1;
     if (password.length >= 12) strength += 1;
+    if (password.length >= 16) strength += 1;
+    
+    // Character type checks
     if (/[a-z]/.test(password)) strength += 1;
     if (/[A-Z]/.test(password)) strength += 1;
     if (/[0-9]/.test(password)) strength += 1;
-    if (/[^A-Za-z0-9]/.test(password)) strength += 1;
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength += 1;
+    
+    // Common pattern checks (deduct points)
+    if (/(.)\1{2,}/.test(password)) strength -= 1; // Repeated characters
+    if (/^(password|123456|qwerty)/i.test(password)) strength -= 2; // Common passwords
     
     if (strength <= 2) return 'weak';
-    if (strength <= 4) return 'medium';
+    if (strength <= 5) return 'medium';
     return 'strong';
   }
   

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useCallback, useEffect, lazy, Suspense, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from '../contexts/RouterContext';
 import { fetchProductFromAPI } from '../services/productService';
@@ -27,10 +27,10 @@ const ScreenLoader = () => (
   </div>
 );
 
-const AppContent = ({ onShowLogin }) => {
+const AppContent = ({ onShowLogin, currentScreen, setCurrentScreen, showUpgrade, setShowUpgrade }) => {
   const { user, decrementScans, upgradeTier } = useAuth();
-  const { currentRoute, navigate, goBack, routeParams } = useRouter();
-  const [showUpgrade, setShowUpgrade] = useState(false);
+  
+  // Remove local currentScreen state since we're getting it from props
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [scannedProduct, setScannedProduct] = useState(null);
@@ -43,6 +43,9 @@ const AppContent = ({ onShowLogin }) => {
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [availableCoupons, setAvailableCoupons] = useState([]);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
+  
+  // Use ref to track if component is mounted
+  const isMounted = useRef(true);
   
   // Load settings from localStorage
   const [appSettings, setAppSettings] = useState(() => {
@@ -66,6 +69,13 @@ const AppContent = ({ onShowLogin }) => {
       }
     };
   });
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   // Load saved products from localStorage
   useEffect(() => {
@@ -97,36 +107,43 @@ const AppContent = ({ onShowLogin }) => {
     }
   }, [routeParams, currentRoute, savedProducts]);
 
-  // Listen for navigation events (kept for compatibility)
+  // Create a global navigation function that can be called from anywhere
   useEffect(() => {
-    const handleNavigate = (event) => {
-      navigate(event.detail);
+    // Make navigation functions globally available
+    window.tulipNavigate = (screen) => {
+      setCurrentScreen(screen);
     };
-
-    const handleShowUpgrade = () => {
+    
+    window.tulipShowUpgrade = () => {
       setShowUpgrade(true);
     };
-
-    window.addEventListener('navigate', handleNavigate);
-    window.addEventListener('showUpgrade', handleShowUpgrade);
-
+    
+    // Cleanup
     return () => {
-      window.removeEventListener('navigate', handleNavigate);
-      window.removeEventListener('showUpgrade', handleShowUpgrade);
+      delete window.tulipNavigate;
+      delete window.tulipShowUpgrade;
     };
-  }, [navigate]);
+  }, []);
 
-  // Apply dark mode
+  // Apply dark mode with proper cleanup
   useEffect(() => {
+    const body = document.body;
     if (appSettings.display.darkMode) {
-      document.body.classList.add('dark-mode');
+      body.classList.add('dark-mode');
     } else {
-      document.body.classList.remove('dark-mode');
+      body.classList.remove('dark-mode');
     }
+
+    // Cleanup function
+    return () => {
+      body.classList.remove('dark-mode');
+    };
   }, [appSettings.display.darkMode]);
 
   // Pull to refresh handler
   const handleRefresh = useCallback(async () => {
+    if (!isMounted.current) return;
+    
     try {
       // Reload user data
       if (user) {
@@ -140,12 +157,14 @@ const AppContent = ({ onShowLogin }) => {
       
       // Reload saved products
       const saved = localStorage.getItem('tulip_saved_products');
-      if (saved) {
+      if (saved && isMounted.current) {
         setSavedProducts(JSON.parse(saved));
       }
       
       // Clear any errors
-      setError('');
+      if (isMounted.current) {
+        setError('');
+      }
     } catch (err) {
       console.error('Refresh failed:', err);
     }
@@ -192,6 +211,8 @@ const AppContent = ({ onShowLogin }) => {
 
   // Fetch price comparison
   const handleFetchPriceComparison = useCallback(async (productName, brand) => {
+    if (!isMounted.current) return;
+    
     const userTier = user?.tier || 'free';
     const maxRetailers = TIER_FEATURES[userTier].limitations.maxRetailers;
     
@@ -203,11 +224,15 @@ const AppContent = ({ onShowLogin }) => {
         data.retailers = data.retailers.slice(0, maxRetailers);
       }
       
-      setPriceComparison(data);
+      if (isMounted.current) {
+        setPriceComparison(data);
+      }
     } catch (err) {
       console.error('Failed to fetch prices:', err);
     } finally {
-      setLoadingPrices(false);
+      if (isMounted.current) {
+        setLoadingPrices(false);
+      }
     }
   }, [user]);
 
@@ -219,6 +244,8 @@ const AppContent = ({ onShowLogin }) => {
     setError('');
     
     setTimeout(async () => {
+      if (!isMounted.current) return;
+      
       try {
         const randomBarcode = REAL_BARCODES[Math.floor(Math.random() * REAL_BARCODES.length)];
         const product = await fetchProductFromAPI(randomBarcode);
@@ -227,17 +254,21 @@ const AppContent = ({ onShowLogin }) => {
         product.name = ValidationRules.sanitizeInput(product.name);
         product.brand = ValidationRules.sanitizeInput(product.brand);
         
-        setScannedProduct(product);
-        setIsScanning(false);
-        navigate('product-detail', { productId: product.barcode });
-        decrementScans();
-        
-        if (checkFeatureAccess(user?.tier || 'free', 'maxRetailers') > 3) {
-          handleFetchPriceComparison(product.name, product.brand);
+        if (isMounted.current) {
+          setScannedProduct(product);
+          setIsScanning(false);
+          setCurrentScreen('product-detail');
+          decrementScans();
+          
+          if (checkFeatureAccess(user?.tier || 'free', 'maxRetailers') > 3) {
+            handleFetchPriceComparison(product.name, product.brand);
+          }
         }
       } catch (err) {
-        setError('Failed to scan product. Please try again.');
-        setIsScanning(false);
+        if (isMounted.current) {
+          setError('Failed to scan product. Please try again.');
+          setIsScanning(false);
+        }
       }
     }, 2000);
   }, [canScan, user, decrementScans, handleFetchPriceComparison, navigate]);
@@ -263,18 +294,24 @@ const AppContent = ({ onShowLogin }) => {
       product.name = ValidationRules.sanitizeInput(product.name);
       product.brand = ValidationRules.sanitizeInput(product.brand);
       
-      setScannedProduct(product);
-      navigate('product-detail', { productId: product.barcode });
-      setManualBarcode('');
-      decrementScans();
-      
-      if (checkFeatureAccess(user?.tier || 'free', 'maxRetailers') > 3) {
-        handleFetchPriceComparison(product.name, product.brand);
+      if (isMounted.current) {
+        setScannedProduct(product);
+        setCurrentScreen('product-detail');
+        setManualBarcode('');
+        decrementScans();
+        
+        if (checkFeatureAccess(user?.tier || 'free', 'maxRetailers') > 3) {
+          handleFetchPriceComparison(product.name, product.brand);
+        }
       }
     } catch (err) {
-      setError('Product not found. Please check the barcode and try again.');
+      if (isMounted.current) {
+        setError('Product not found. Please check the barcode and try again.');
+      }
     } finally {
-      setIsLoading(false);
+      if (isMounted.current) {
+        setIsLoading(false);
+      }
     }
   }, [canScan, manualBarcode, user, decrementScans, handleFetchPriceComparison, navigate]);
 
@@ -288,7 +325,9 @@ const AppContent = ({ onShowLogin }) => {
     
     try {
       const coupons = await fetchCoupons(productName, brand, retailer);
-      setAvailableCoupons(coupons);
+      if (isMounted.current) {
+        setAvailableCoupons(coupons);
+      }
     } catch (err) {
       console.error('Failed to fetch coupons:', err);
     }
@@ -320,11 +359,14 @@ const AppContent = ({ onShowLogin }) => {
 
   // Render content based on current route
   const renderContent = () => {
-    switch (currentRoute) {
+    // Use currentScreen as the source of truth
+    const activeRoute = currentScreen;
+    
+    switch (activeRoute) {
       case 'scanner':
         return (
           <ScannerScreen 
-            setCurrentScreen={navigate}
+            setCurrentScreen={setCurrentScreen}
             isScanning={isScanning}
             simulateScan={simulateScan}
           />
@@ -334,7 +376,7 @@ const AppContent = ({ onShowLogin }) => {
         return (
           <ProductDetailScreen 
             scannedProduct={scannedProduct}
-            setCurrentScreen={navigate}
+            setCurrentScreen={setCurrentScreen}
             saveProduct={saveProduct}
             savedProducts={savedProducts}
             priceComparison={priceComparison}
@@ -348,7 +390,7 @@ const AppContent = ({ onShowLogin }) => {
             userTier={user?.tier || 'free'}
             setShowUpgrade={setShowUpgrade}
             showPrices={appSettings.display.showPrices}
-            onBack={goBack}
+            onBack={() => setCurrentScreen('home')}
           />
         );
         
@@ -356,7 +398,7 @@ const AppContent = ({ onShowLogin }) => {
         return (
           <ProfileScreen 
             user={user}
-            setCurrentScreen={navigate}
+            setCurrentScreen={setCurrentScreen}
             savedProducts={savedProducts}
           />
         );
@@ -365,7 +407,7 @@ const AppContent = ({ onShowLogin }) => {
         return (
           <SettingsScreen 
             user={user}
-            setCurrentScreen={navigate}
+            setCurrentScreen={setCurrentScreen}
             onShowTerms={() => {
               closeAllModals();
               setShowTerms(true);
@@ -382,7 +424,7 @@ const AppContent = ({ onShowLogin }) => {
       case 'subscription':
         return (
           <SubscriptionScreen 
-            setCurrentScreen={navigate}
+            setCurrentScreen={setCurrentScreen}
             onUpgrade={handleUpgrade}
           />
         );
@@ -391,7 +433,7 @@ const AppContent = ({ onShowLogin }) => {
       default:
         return (
           <HomeScreen 
-            setCurrentScreen={navigate}
+            setCurrentScreen={setCurrentScreen}
             manualBarcode={manualBarcode}
             setManualBarcode={setManualBarcode}
             searchByBarcode={searchByBarcode}
@@ -400,7 +442,7 @@ const AppContent = ({ onShowLogin }) => {
             savedProducts={savedProducts}
             setScannedProduct={(product) => {
               setScannedProduct(product);
-              navigate('product-detail', { productId: product.barcode });
+              setCurrentScreen('product-detail');
             }}
             user={user}
             remainingScans={getRemainingScans(user)}

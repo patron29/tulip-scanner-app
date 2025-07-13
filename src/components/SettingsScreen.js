@@ -63,9 +63,6 @@ const SettingsScreen = ({ user, setCurrentScreen, onShowTerms, onShowPrivacy, se
     // Show saved indicator
     setShowSaved(true);
     setTimeout(() => setShowSaved(false), 2000);
-    
-    // Log for debugging
-    console.log(`Toggled ${category}.${setting} to:`, newSettings[category][setting]);
   };
 
   const ToggleSwitch = ({ enabled, onToggle, disabled = false }) => (
