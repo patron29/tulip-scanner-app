@@ -1,9 +1,9 @@
-// Product Service - Connects to Backend API
+// Scan Service - Connects to Backend API
 const API_BASE_URL = 'http://localhost:5001/api';
 
-export const productService = {
-  // Get product information by barcode
-  getProductByBarcode: async (barcode) => {
+export const scanService = {
+  // Record a new scan
+  recordScan: async (barcode, productName, prices) => {
     try {
       const token = localStorage.getItem('token');
 
@@ -11,32 +11,34 @@ export const productService = {
         throw new Error('No token found. Please login.');
       }
 
-      const response = await fetch(`${API_BASE_URL}/products/${barcode}`, {
-        method: 'GET',
+      const response = await fetch(`${API_BASE_URL}/scans`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
+        body: JSON.stringify({
+          barcode,
+          productName,
+          prices
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Product not found');
-        }
-        throw new Error(data.message || 'Failed to get product');
+        throw new Error(data.message || 'Failed to record scan');
       }
 
       return data.data;
     } catch (error) {
-      console.error('Get product error:', error);
+      console.error('Record scan error:', error);
       throw error;
     }
   },
 
-  // Search products (if implemented on backend)
-  searchProducts: async (query) => {
+  // Get scan history
+  getScanHistory: async () => {
     try {
       const token = localStorage.getItem('token');
 
@@ -44,7 +46,7 @@ export const productService = {
         throw new Error('No token found. Please login.');
       }
 
-      const response = await fetch(`${API_BASE_URL}/products/search?q=${encodeURIComponent(query)}`, {
+      const response = await fetch(`${API_BASE_URL}/scans/history`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -55,15 +57,15 @@ export const productService = {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Search failed');
+        throw new Error(data.message || 'Failed to get scan history');
       }
 
       return data.data;
     } catch (error) {
-      console.error('Search products error:', error);
+      console.error('Get scan history error:', error);
       throw error;
     }
   },
 };
 
-export default productService;
+export default scanService;
