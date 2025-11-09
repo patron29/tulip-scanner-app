@@ -66,4 +66,9 @@ export const productService = {
   },
 };
 
+// Alias function for backwards compatibility with existing frontend code
+export const fetchProductFromAPI = async (barcode) => {
+  return productService.getProductByBarcode(barcode);
+};
+
 export default productService;

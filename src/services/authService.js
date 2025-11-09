@@ -22,7 +22,7 @@ const validatePassword = (password) => {
 };
 
 export const authService = {
-  // Register new user
+  // Register new user (alias for 'signup')
   register: async (email, password, name) => {
     if (!validateEmail(email)) {
       throw new Error('Invalid email format');
@@ -95,7 +95,7 @@ export const authService = {
     }
   },
 
-  // Social login (Google)
+  // Social login (Google/Apple)
   socialLogin: async (provider, profileData) => {
     try {
       let endpoint;
