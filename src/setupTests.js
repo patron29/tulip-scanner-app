@@ -1,6 +1,14 @@
 // src/setupTests.js
 import '@testing-library/jest-dom';
 
+// Suppress ResizeObserver error in development
+window.addEventListener('error', (e) => {
+  if (e.message?.includes('ResizeObserver loop')) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+});
+
 // Mock localStorage
 const localStorageMock = {
   getItem: jest.fn(),
