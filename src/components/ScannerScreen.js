@@ -61,7 +61,6 @@ const ScannerScreen = ({ setCurrentScreen, isScanning, simulateScan, onBarcodeDe
         
         setIsLoading(false);
       } catch (err) {
-        console.error('Camera error:', err);
         setHasPermission(false);
         setIsLoading(false);
         
@@ -88,7 +87,7 @@ const ScannerScreen = ({ setCurrentScreen, isScanning, simulateScan, onBarcodeDe
       }
       barcodeScanner.destroy();
     };
-  }, []);
+  }, [handleBarcodeDetected]);
 
   const handleClose = () => {
     // Stop all camera tracks before closing

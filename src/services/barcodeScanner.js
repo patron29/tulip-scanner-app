@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // src/services/barcodeScanner.js
 // Service for handling barcode scanning functionality
 

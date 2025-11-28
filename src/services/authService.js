@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // Authentication Service - Connects to Backend API
 const API_BASE_URL = 'http://localhost:5001/api';
 
@@ -242,7 +243,7 @@ export const authService = {
       if (!response.ok) {
         // If unauthorized, clear stored data
         if (response.status === 401) {
-          this.logout();
+          authService.logout();
         }
         throw new Error(data.message || 'Failed to get user');
       }
