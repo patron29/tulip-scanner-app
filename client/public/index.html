@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Primary favicon -->
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <!-- PNG favicon for modern browsers -->
+    <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/tulip-icon.png">
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/tulip-icon.png" />
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#F5A3C7" />
+    <meta
+      name="description"
+      content="Tulip - Smart product scanner app to compare prices and save money"
+    />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>Tulip - Smart Product Scanner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'tulip-pink': '#F5A3C7',
+              'tulip-pink-light': '#F8B8D4',
+              'tulip-green': '#5CAD5C',
+              'tulip-yellow': '#F5DDA9',
+              'tulip-purple': '#9B59B6'
+            }
+          }
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
