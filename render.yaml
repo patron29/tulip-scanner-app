@@ -1,0 +1,21 @@
+# Render blueprint for the Tulip backend (server/).
+# Deploy: in Render, New > Blueprint, point it at patron29/tulip-scanner-app.
+# Then set MONGODB_URI (MongoDB Atlas connection string) and FRONTEND_URL
+# (the Vercel frontend URL) in the Render dashboard. JWT_SECRET is generated
+# automatically by Render.
+services:
+  - type: web
+    name: tulip-backend
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
