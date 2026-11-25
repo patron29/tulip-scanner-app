@@ -9,6 +9,7 @@
     "@capacitor/cli": "^7.4.2",
     "@capacitor/core": "^7.4.2",
     "@testing-library/dom": "^10.4.0",
+    "@zxing/browser": "^0.2.1",
     "lucide-react": "^0.525.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

@@ -8,12 +8,14 @@ class BarcodeScanner {
     this.videoElement = null;
     this.canvasElement = null;
     this.canvasContext = null;
+    this.zxingReader = null;
+    this.zxingControls = null;
   }
 
   // Initialize the scanner with video element
   init(videoElement) {
     this.videoElement = videoElement;
-    
+
     // Create an offscreen canvas for image processing
     this.canvasElement = document.createElement('canvas');
     this.canvasContext = this.canvasElement.getContext('2d');
@@ -38,7 +40,7 @@ class BarcodeScanner {
         // eslint-disable-next-line no-undef
         const formats = await window.BarcodeDetector.getSupportedFormats();
         console.log('Supported barcode formats:', formats);
-        
+
         // eslint-disable-next-line no-undef
         const barcodeDetector = new window.BarcodeDetector({
           formats: ['code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code']
@@ -49,7 +51,7 @@ class BarcodeScanner {
 
           try {
             const barcodes = await barcodeDetector.detect(this.videoElement);
-            
+
             if (barcodes.length > 0) {
               console.log('Barcode detected:', barcodes[0]);
               this.isScanning = false;
@@ -69,37 +71,84 @@ class BarcodeScanner {
         detectLoop();
       } catch (err) {
         console.error('BarcodeDetector error:', err);
-        // Fall back to manual scanning
-        this.fallbackToManualScanning(onBarcodeDetected);
+        // Fall back to ZXing decoding
+        this.startZXingFallback(onBarcodeDetected);
       }
     } else {
-      // Use fallback method for iOS and other browsers
-      this.fallbackToManualScanning(onBarcodeDetected);
+      // Use ZXing fallback for iOS and other browsers without BarcodeDetector
+      this.startZXingFallback(onBarcodeDetected);
     }
   }
 
-  // Fallback scanning method for browsers without BarcodeDetector
-  fallbackToManualScanning(onBarcodeDetected) {
-    console.log('BarcodeDetector not available, using fallback method');
-    
-    // For iOS and browsers without native barcode scanning,
-    // we'll need to either:
-    // 1. Integrate a JavaScript barcode scanning library like QuaggaJS or ZXing
-    // 2. Capture frames and send to a server-side barcode detection service
-    // 3. Provide a manual input option
-    
-    // For now, we'll show a message to use the manual input
-    setTimeout(() => {
+  // ZXing fallback for browsers without BarcodeDetector (e.g. iOS Safari).
+  // Decodes continuously from the same video element until a barcode is found.
+  // If ZXing cannot start at all, manual entry is the last resort: signal it
+  // immediately instead of after a delay.
+  async startZXingFallback(onBarcodeDetected) {
+    try {
+      // Lazy-load ZXing so the BarcodeDetector fast path never pays for it.
+      const { BrowserMultiFormatReader } = await import('@zxing/browser');
+
+      // Scanning may have been stopped while the library was loading.
+      if (!this.isScanning) return;
+
+      this.zxingReader = new BrowserMultiFormatReader();
+      this.zxingControls = await this.zxingReader.decodeFromVideoDevice(
+        undefined,
+        this.videoElement,
+        (result, error) => {
+          if (!this.isScanning) return;
+
+          if (result) {
+            console.log('Barcode detected (ZXing):', result.getText());
+            this.isScanning = false;
+            this.stopZXingReader();
+            onBarcodeDetected(result.getText());
+            return;
+          }
+
+          // NotFoundException just means "no barcode in this frame" - keep scanning.
+          if (error && error.name !== 'NotFoundException') {
+            console.warn('ZXing decode error:', error);
+          }
+        }
+      );
+    } catch (err) {
+      console.error('ZXing fallback failed:', err);
+      this.stopZXingReader();
+      // Last resort: manual entry.
       if (this.isScanning) {
         this.isScanning = false;
-        onBarcodeDetected(null); // Indicate manual input needed
+        onBarcodeDetected(null);
       }
-    }, 3000);
+    }
+  }
+
+  // Stop the ZXing reader and release the camera stream it created (if any).
+  // Safe to call when no ZXing scan is active.
+  stopZXingReader() {
+    if (this.zxingControls) {
+      try {
+        const stopped = this.zxingControls.stop();
+        // stop() can be async when torch control is involved; don't let a
+        // rejection surface as an unhandled promise rejection.
+        if (stopped && typeof stopped.catch === 'function') {
+          stopped.catch((err) => {
+            console.warn('Failed to stop ZXing controls:', err);
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to stop ZXing controls:', err);
+      }
+      this.zxingControls = null;
+    }
+    this.zxingReader = null;
   }
 
   // Stop scanning
   stopScanning() {
     this.isScanning = false;
+    this.stopZXingReader();
   }
 
   // Capture current frame from video
@@ -109,9 +158,9 @@ class BarcodeScanner {
     const { videoWidth, videoHeight } = this.videoElement;
     this.canvasElement.width = videoWidth;
     this.canvasElement.height = videoHeight;
-    
+
     this.canvasContext.drawImage(this.videoElement, 0, 0, videoWidth, videoHeight);
-    
+
     return this.canvasElement.toDataURL('image/jpeg');
   }
 
